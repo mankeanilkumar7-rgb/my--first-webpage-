@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gainsight Hub</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1b1f2a;--muted:#5d6475;--line:#e1e4ee;--accent:#4f46e5;--accent-text:#fff;--danger:#c62828;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141b;--card:#1b1e28;--text:#eceef5;--muted:#9aa1b5;--line:#2c3040;--accent:#8b85ff;--accent-text:#11121a;--danger:#ff7b72}}
+:root[data-theme="dark"]{--bg:#12141b;--card:#1b1e28;--text:#eceef5;--muted:#9aa1b5;--line:#2c3040;--accent:#8b85ff;--accent-text:#11121a;--danger:#ff7b72}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{margin:0;font-size:28px}
+.sub{color:var(--muted);margin:4px 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:20px}
+label{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
+textarea{min-height:70px;resize:vertical}
+button{background:var(--accent);color:var(--accent-text);border:0;border-radius:10px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;margin-top:16px}
+button:disabled{opacity:.5;cursor:default}
+button.ghost{background:transparent;color:var(--danger);border:1px solid var(--line);margin:0;padding:6px 12px;font-size:14px}
+a.open{color:var(--accent);font-weight:600;text-decoration:none;margin-right:12px}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.meta{color:var(--muted);font-size:13px}
+.tag{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:1px 10px;font-size:12px;margin-left:6px}
+.msg{font-size:14px;margin-top:10px;min-height:20px}
+.empty{color:var(--muted);text-align:center;padding:20px 0}
+.search{margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📚 Gainsight Hub</h1>
+  <p class="sub">Upload and keep all your reports and documents in one place.</p>
+
+  <div class="card" id="formCard">
+    <h2 style="margin:0 0 4px;font-size:18px">Add a report</h2>
+    <div id="notice" class="meta"></div>
+    <div>
+      <label for="title">Title</label>
+      <input id="title" placeholder="e.g. October Monthly Report">
+      <label for="cat">Category</label>
+      <select id="cat">
+        <option>Reports</option><option>General</option><option>Resume / Career</option><option>Study Notes</option>
+        <option>Projects</option><option>Certificates</option><option>Other</option>
+      </select>
+      <label for="notes">Notes (optional)</label>
+      <textarea id="notes" placeholder="Short description"></textarea>
+      <label for="file">File (PDF, image, CSV, text · max 20 MB)</label>
+      <input id="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.csv,.md,.json,.txt,.mp4,.webm">
+      <button id="save" type="button">Upload report</button>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:18px">Your documents <span class="meta" id="count"></span></h2>
+    <input class="search" id="q" placeholder="Search by title or category">
+    <div id="list"><div class="empty">No documents yet.</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var db=null, assets=null, docs=[];
+  var $=function(id){return document.getElementById(id)};
+  function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
+  function fmtSize(n){if(!n)return'';return n>1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+
+  function render(){
+    var q=$('q').value.trim().toLowerCase();
+    var items=docs.filter(function(d){return !q||((d.title||'')+' '+(d.cat||'')).toLowerCase().indexOf(q)>-1});
+    $('count').textContent=docs.length?'('+docs.length+')':'';
+    if(!items.length){$('list').innerHTML='<div class="empty">'+(docs.length?'No matches.':'No documents yet.')+'</div>';return}
+    $('list').innerHTML=items.map(function(d){
+      var date=d.created?new Date(d.created).toLocaleDateString():'';
+      return '<div class="row"><div><div><strong>'+esc(d.title)+'</strong><span class="tag">'+esc(d.cat)+'</span></div>'
+        +(d.notes?'<div class="meta">'+esc(d.notes)+'</div>':'')
+        +'<div class="meta">'+esc(d.fileName)+' · '+fmtSize(d.size)+' · '+esc(date)+'</div></div>'
+        +'<div style="white-space:nowrap"><a class="open" href="/_blob/'+esc(d.assetId)+'" target="_blank" rel="noopener">Open</a>'
+        +'<button class="ghost" data-id="'+esc(d.id)+'" type="button">Delete</button></div></div>';
+    }).join('');
+  }
+
+  $('q').addEventListener('input',render);
+
+  $('list').addEventListener('click',async function(e){
+    var id=e.target&&e.target.getAttribute&&e.target.getAttribute('data-id');
+    if(!id||!db)return;
+    var d=docs.filter(function(x){return x.id===id})[0];
+    if(!d||!confirm('Delete "'+d.title+'"?'))return;
+    try{
+      await db.collection('hub-documents').doc(id).delete();
+      if(assets&&d.assetId){try{await assets.delete(d.assetId)}catch(_){}}
+    }catch(err){alert('Could not delete: '+(err&&err.message||'error'))}
+  });
+
+  $('save').addEventListener('click',async function(){
+    var msg=$('msg'), f=$('file').files[0], title=$('title').value.trim();
+    if(!db||!assets){msg.textContent='Uploads need editor access to this page.';return}
+    if(!title){msg.textContent='Please enter a title.';return}
+    if(!f){msg.textContent='Please choose a file.';return}
+    $('save').disabled=true;msg.textContent='Uploading…';
+    try{
+      var up=await assets.upload(f);
+      await db.collection('hub-documents').add({
+        title:title,cat:$('cat').value,notes:$('notes').value.trim(),
+        assetId:up.id,fileName:f.name,size:up.sizeBytes||f.size,created:Date.now()
+      });
+      $('title').value='';$('notes').value='';$('file').value='';
+      msg.textContent='Saved ✔';
+    }catch(err){
+      msg.textContent='Upload failed: '+(err&&(err.message||err.code)||'unknown error');
+    }
+    $('save').disabled=false;
+  });
+
+  async function init(){
+    try{
+      if(!window.claude||!claude.use){$('notice').textContent='Open this page inside Claude to enable uploads.';return}
+      db=await claude.use('db');
+      assets=await claude.use('assets');
+      if(!db){$('notice').textContent='Sign in to view and save documents.';return}
+      if(!assets){$('notice').textContent='You can view documents; only editors can upload.';}
+      db.collection('hub-documents').orderBy('created','desc').onSnapshot(function(snap){
+        docs=snap.docs.map(function(s){var o=s.data()||{};o.id=s.id;return o});
+        render();
+      },function(){$('notice').textContent='Could not load documents.'});
+    }catch(e){$('notice').textContent='Storage is unavailable right now.'}
+  }
+  init();
+})();
+</script>
+</body>
+</html>
